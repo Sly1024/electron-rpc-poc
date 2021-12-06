@@ -1,8 +1,37 @@
 import {app, BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
 import * as path from 'path';
+import { RPCChannel, RPCService } from './rpc-proxy';
 
 
 function createWindow() {
+    const rpc = new RPCService();
+
+    rpc.connect({
+        receive: (callback: (message: any, replyChannel?: RPCChannel) => void) => {
+            ipcMain.on('channel', (event, message) => {
+                callback(message, {
+                    sendAsync: (msg) => event.reply('channel', msg),
+                    sendSync: (msg) => { event.returnValue = msg; }
+                });
+            });
+        }
+    });
+
+    const myServerObject = {
+        logThis: (msg: string) => (console.log(msg), "OK"),
+        add: (a: number, b: number) => a + b
+    };
+
+    rpc.registerTargetObject('servobj', myServerObject, {
+        sync: ['add'],
+        async: ['logThis']
+    });
+
+    // just for debugging
+    ipcMain.on('channel', async (event, message) => {
+        console.log('received', message);
+    });
+
     const mainWindow = new BrowserWindow({
         width: 800, height: 600,
         webPreferences: {
@@ -11,25 +40,6 @@ function createWindow() {
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         }
-    });
-
-    const myServerObject = {
-        logThis: (msg: string) => console.log(msg),
-        add: (a: number, b: number) => a + b
-    };
-
-
-    registerTargetObject('servobj', myServerObject, {
-        sync: ['add'],
-        async: ['logThis']
-    });
-
-    ipcMain.on('channel', (event, message) => {
-        if (message = 'ready') {
-            event.returnValue = getRegisteredObjectDescriptors();
-            return;
-        }
-        
     });
 
     mainWindow.loadFile('../index.html');
@@ -42,21 +52,3 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
-
-type ObjectRegistryEntry = {
-    target: any;
-    descriptor: any;
-}
-const objRegistry = new Map<string, ObjectRegistryEntry>();
-
-function registerTargetObject(objId: string, target: any, descriptor: any) {
-    objRegistry.set(objId, { target, descriptor });
-}
-
-function getRegisteredObjectDescriptors() {
-    const descriptors = {};
-    for (const key of objRegistry.keys()) {
-        descriptors[key] = objRegistry.get(key).descriptor;
-    }
-    return descriptors;
-}
