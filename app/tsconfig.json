@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "outDir": "dist",
+        "module": "commonjs",
+        "target": "ES2018",
+        "moduleResolution": "Node",
+        "baseUrl": "./"
+    },
+    "include": ["./**/*.ts"],
+    "exclude": [
+        "node_modules"
+    ]
+}
