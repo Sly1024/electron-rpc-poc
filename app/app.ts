@@ -17,19 +17,17 @@ function createWindow() {
         }
     });
 
+    let counter = 0;
+
     const myServerObject = {
         logThis: (msg: string) => (console.log(msg), "OK"),
-        add: (a: number, b: number) => a + b
+        add: (a: number, b: number) => a + b,
+        callMeLater: (fn) => { setTimeout(() => fn("hello"+ ++counter), 2000); }
     };
 
     rpc.registerTargetObject('servobj', myServerObject, {
         sync: ['add'],
-        async: ['logThis']
-    });
-
-    // just for debugging
-    ipcMain.on('channel', async (event, message) => {
-        console.log('received', message);
+        async: ['logThis', 'callMeLater']
     });
 
     const mainWindow = new BrowserWindow({

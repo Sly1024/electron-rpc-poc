@@ -15,11 +15,5 @@ rpc.connect(channel);
 
 rpc.requestRemoteDescriptors();
 
-const api = rpc.getProxyObject('servobj');
+const api = rpc.createProxyObject('servobj');
 contextBridge.exposeInMainWorld('api', api);
-
-// contextBridge.exposeInMainWorld('api', {
-//     send: (channel: string, data: any) => ipcRenderer.send(channel, data),
-//     receive: (channel: string, func: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => ipcRenderer.on(channel, func),        
-// });
-
