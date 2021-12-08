@@ -1,0 +1,14 @@
+{
+    "name": "electron-rpc-app",
+    "version": "1.0.0",
+    "description": "PoC app for Electron RPC with preloading",
+
+    "scripts": {
+      "watch": "tsc -p ./tsconfig.json -w"
+    },
+    "author": "szilveszter.safar@gmail.com",
+    "license": "MIT",
+    "dependencies": {
+    }
+  }
+  

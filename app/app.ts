@@ -1,6 +1,6 @@
 import {app, BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
 import * as path from 'path';
-import { RPCChannel, RPCService } from './rpc-proxy';
+import { RPCChannel, RPCService } from '../lib/rpc-proxy';
 
 
 function createWindow() {
@@ -36,11 +36,11 @@ function createWindow() {
             nativeWindowOpen: true,
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, '../lib/preload.js')
         }
     });
 
-    mainWindow.loadFile('../index.html');
+    mainWindow.loadFile('../../index.html');
 }
 
 

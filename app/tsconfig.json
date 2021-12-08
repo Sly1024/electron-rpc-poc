@@ -1,13 +1,13 @@
 {
     "compilerOptions": {
-        "outDir": "dist",
+        "outDir": "../dist/app",
         "module": "commonjs",
         "target": "ESNext",
         "moduleResolution": "Node",
         "baseUrl": "./"
     },
     "include": ["./**/*.ts"],
-    "exclude": [
-        "node_modules"
+    "references": [
+        { "path": "../lib"}
     ]
 }

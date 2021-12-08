@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "outDir": "../dist/lib",
+        "module": "commonjs",
+        "target": "ESNext",
+        "moduleResolution": "Node",
+        "baseUrl": "./",
+        "composite": true,
+        "declaration": true
+    },
+    "include": ["./**/*.ts"]
+}

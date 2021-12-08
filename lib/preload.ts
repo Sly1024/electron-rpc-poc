@@ -1,5 +1,5 @@
 import {ipcRenderer, contextBridge} from 'electron';
-import {RPCChannel, RPCService} from './rpc-proxy';
+import {RPCChannel, RPCService} from '../lib/rpc-proxy';
 
 // a communication channel
 const channel: RPCChannel = {
