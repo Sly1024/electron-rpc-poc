@@ -31,11 +31,11 @@ type RPCSyncFnResultMessage = RPCFnResultMessageBase & { action: 'sync_reply'};
 type RPCAsyncFnResultMessage = RPCFnResultMessageBase & { action: 'async_reply', callId: number };
 type RPCFnResultMessage = RPCSyncFnResultMessage | RPCAsyncFnResultMessage;
 
-type RPCFnDiedMessage = RPCMessageBase & { action: 'fn_died', functionId: string };
-type RPCAsyncCallbackCallMessage = RPCMessageBase & { action: 'async_fn', functionId: string, args: any[] };
+type RPCObjectDiedMessage = RPCMessageBase & { action: 'obj_died', objId: string };
+type RPCAsyncCallbackCallMessage = RPCMessageBase & { action: 'async_fn', objId: string, args: any[] };
 
 type RPCMessage = RPCGetDescriptorsMessage | RPCDescriptorsResultMessage |
-    RPCFnCallMessage | RPCFnResultMessage | RPCAsyncCallbackCallMessage | RPCFnDiedMessage;
+    RPCFnCallMessage | RPCFnResultMessage | RPCAsyncCallbackCallMessage | RPCObjectDiedMessage;
 
 export interface RPCChannel {
     sendSync?: (message: RPCMessage) => any,
@@ -97,6 +97,10 @@ export class RPCService {
         return channel.sendSync ? this.sendSync(message, channel) : this.sendAsync(message, channel);
     }
 
+    private sendAsyncIfPossible(message: RPCMessage, channel = this.channel) {
+        return channel.sendAsync ? this.sendAsync(message, channel) : this.sendSync(message, channel);
+    }
+
     private addMarker(message: RPCMessage) {
         message.rpc_marker = 'webrpc';
     }
@@ -129,7 +133,7 @@ export class RPCService {
     }
 
     messageReceived(message: RPCMessage, replyChannel = this.channel) {    
-        console.log('received', JSON.stringify(message))   ;
+        // console.log('received', JSON.stringify(message))   ;
 
         if (this.checkMarker(message)) {
             switch (message.action) {
@@ -143,14 +147,14 @@ export class RPCService {
                     break;
                 }
                 case 'async_fn': {
-                    const fn = this.functionRegistry.get(message.functionId);
+                    const fn = this.localObjectRegistry.get(message.objId);
                     if (!fn) throw new Error(`Remote function not found`);
                     fn(...message.args.map(arg => this.postprocessSerialization(arg, replyChannel)));
                     break;
                 }
-                case 'fn_died': {
-                    this.functionRegistry.delete(message.functionId);
-                    console.log('fnReg #', this.functionRegistry.size);
+                case 'obj_died': {
+                    this.localObjectRegistry.delete(message.objId);
+                    console.log('objReg #', this.localObjectRegistry.size);
                     break;
                 }
                 case 'async_reply': {
@@ -198,10 +202,23 @@ export class RPCService {
         return obj;
     }
 
-    private functionRegistry = new Map<string, Function>();
-    private functionFinalized = new FinalizationRegistry(({ functionId, replyChannel }) => {
-        this.sendAsync({ action: 'fn_died', functionId }, replyChannel);
-    });
+    private localObjectRegistry = new Map<string, any>();
+    private remoteObjectRegistry = new Map<string, WeakRef<any>>();
+
+    private remoteObjectFinalized = new FinalizationRegistry((dispose: () => void) => dispose());
+
+    private remoteObjectDisposed(objId: string, uregToken: object, replyChannel: RPCChannel) {
+        this.remoteObjectFinalized.unregister(uregToken);
+        this.remoteObjectRegistry.delete(objId);
+        this.sendAsyncIfPossible({ action: 'obj_died', objId }, replyChannel);
+    }
+    
+    private registerRemoteObject(objId: string, obj: any, replyChannel: RPCChannel, dispose?: () => void) {
+        const unregToken = {};
+        obj._rpc_dispose = () => { dispose?.(); this.remoteObjectDisposed(objId, unregToken, replyChannel); }
+        this.remoteObjectFinalized.register(obj, obj._rpc_dispose, unregToken);
+        this.remoteObjectRegistry.set(objId, new WeakRef(obj));
+    }
 
     private preprocessSerialization(obj: any) {
         switch (typeof obj) {
@@ -212,15 +229,15 @@ export class RPCService {
                 break;
             }
             case 'function': {
-                let functionId = obj._rpc_fnId;
-                if (!this.functionRegistry.has(functionId)) {
-                    functionId = nanoid();
-                    this.functionRegistry.set(functionId, obj);
-                    obj._rpc_fnId = functionId;
-                    console.log('fnReg #', this.functionRegistry.size);
+                let objId = obj._rpc_objId;
+                if (!this.localObjectRegistry.has(objId)) {
+                    objId = nanoid();
+                    this.localObjectRegistry.set(objId, obj);
+                    obj._rpc_objId = objId;
+                            console.log('fnReg #', this.localObjectRegistry.size);
                 }
                 
-                return { _rpc_type: 'function', functionId };
+                return { _rpc_type: 'function', objId };
             }
         }
         return obj;
@@ -230,10 +247,7 @@ export class RPCService {
         switch (typeof obj) {
             case 'object': {
                 if (obj._rpc_type === 'function') {
-                    const functionId = obj.functionId;
-                    const fn = this.createRemoteFunction(functionId, replyChannel);
-                    this.functionFinalized.register(fn, { functionId, replyChannel });
-                    return fn;
+                    return this.createRemoteFunction(obj.objId, replyChannel);
                 }
                 for (const key of Object.keys(obj)) {
                     obj[key] = this.postprocessSerialization(obj[key], replyChannel);
@@ -244,9 +258,19 @@ export class RPCService {
         return obj;
     }
 
-    private createRemoteFunction(functionId: string, replyChannel: RPCChannel) {
-        return (...args: any[]) => {
-            this.sendAsync({ action: 'async_fn', functionId, args: args.map(this.preprocessSerialization) }, replyChannel);
-        };
+    private createRemoteFunction(objId: string, replyChannel: RPCChannel) {
+        let fn = this.remoteObjectRegistry.get(objId)?.deref();
+        if (!fn) {
+            let disposed = false;
+            fn = (...args: any[]) => {
+                if (disposed) throw new Error(`Remote function has been disposed`);
+                this.sendAsync({ action: 'async_fn', objId, args: args.map(this.preprocessSerialization) }, replyChannel);
+            };
+            this.registerRemoteObject(objId, fn, replyChannel, () => disposed = true);
+        }
+        return fn;
     }
+
+    
+
 }
