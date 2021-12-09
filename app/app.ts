@@ -26,9 +26,33 @@ function createWindow() {
     };
 
     rpc.registerTargetObject('servobj', myServerObject, {
-        sync: ['add'],
-        async: ['logThis', 'callMeLater']
+        functions: [
+            'logThis', // async
+            { name: 'add', returns: 'sync' },
+            { name: 'callMeLater', returns: 'void', arguments:[ { returns: 'void' } ] }
+        ]
     });
+
+    class Tiger {
+        static withName(name: string) {
+            return new Tiger(name);
+        }
+
+        constructor (private _name: string) {}
+
+        get name() { return this._name; }
+
+        sprint() {
+            console.log(`${this._name} sprints.`);
+        }
+    }
+
+    rpc.registerProxyClass('Tiger', Tiger, {
+        staticFunctions: ['withName'],
+        functions: [{ name: 'sprint', returns: 'void'}],
+        readonlyProperties: ['name']
+    });
+
 
     const mainWindow = new BrowserWindow({
         width: 800, height: 600,
