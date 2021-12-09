@@ -22,7 +22,7 @@ function createWindow() {
     const myServerObject = {
         logThis: (msg: string) => (console.log(msg), "OK"),
         add: (a: number, b: number) => a + b,
-        callMeLater: (fn) => { setTimeout(() => fn("hello"+ ++counter), 2000); }
+        callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn("hello"+ ++counter), 2000); }
     };
 
     rpc.registerTargetObject('servobj', myServerObject, {
@@ -55,7 +55,7 @@ function createWindow() {
 
 
     const mainWindow = new BrowserWindow({
-        width: 800, height: 600,
+        width: 1200, height: 850,
         webPreferences: {
             nativeWindowOpen: true,
             nodeIntegration: false,
