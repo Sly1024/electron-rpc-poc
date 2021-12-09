@@ -129,7 +129,7 @@ export class RPCService {
     }
 
     messageReceived(message: RPCMessage, replyChannel = this.channel) {    
-        // console.log('received', JSON.stringify(message))   ;
+        console.log('received', JSON.stringify(message))   ;
 
         if (this.checkMarker(message)) {
             switch (message.action) {

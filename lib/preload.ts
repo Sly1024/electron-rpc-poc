@@ -1,5 +1,5 @@
 import {ipcRenderer, contextBridge} from 'electron';
-import {RPCChannel, RPCService} from '../lib/rpc-proxy';
+import type {RPCChannel} from './rpc-proxy';
 
 // a communication channel
 const channel: RPCChannel = {
@@ -10,10 +10,4 @@ const channel: RPCChannel = {
     }
 }
 
-const rpc = new RPCService();
-rpc.connect(channel);
-
-rpc.requestRemoteDescriptors();
-
-const api = rpc.createProxyObject('servobj');
-contextBridge.exposeInMainWorld('api', api);
+contextBridge.exposeInMainWorld('rpcChannel', channel);
