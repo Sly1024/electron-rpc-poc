@@ -4,7 +4,8 @@
         "module": "commonjs",
         "target": "ESNext",
         "moduleResolution": "Node",
-        "baseUrl": "./"
+        "baseUrl": "./",
+        "sourceMap": true
     },
     "include": ["./**/*.ts"],
     "references": [

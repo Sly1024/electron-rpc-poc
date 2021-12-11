@@ -3,7 +3,8 @@
         "module": "ES2020",
         "target": "ESNext",
         "moduleResolution": "Node",
-        "baseUrl": "./"
+        "baseUrl": "./",
+        "sourceMap": true
     },
     "include": ["./**/*.ts"]
 }

@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
+import {app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import { RPCChannel, RPCService } from '../lib/rpc-proxy';
 
@@ -22,25 +22,33 @@ function createWindow() {
     const myServerObject = {
         logThis: (msg: string) => (console.log(msg), "OK"),
         add: (a: number, b: number) => a + b,
-        callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn("hello"+ ++counter), 2000); }
+        callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn("hello"+ ++counter), 2000); },
+        callMeIllCallYou: async (fn) => await fn(1023) + 2
     };
 
     rpc.registerTargetObject('servobj', myServerObject, {
         functions: [
             'logThis', // async
             { name: 'add', returns: 'sync' },
-            { name: 'callMeLater', returns: 'void', arguments:[ { returns: 'void' } ] }
+            { name: 'callMeLater', returns: 'void', arguments:[ { returns: 'void' } ] },
+            { name: 'callMeIllCallYou', returns: 'void', arguments:[ { type: 'function', returns: 'async' } ] }
         ]
     });
 
     class Tiger {
+        static count = 0;
+
         static withName(name: string) {
             return new Tiger(name);
         }
 
-        constructor (private _name: string) {}
+        constructor (private _name: string) {
+            Tiger.count++;
+        }
 
         get name() { return this._name; }
+
+        age = 1;
 
         sprint() {
             console.log(`${this._name} sprints.`);
@@ -49,8 +57,11 @@ function createWindow() {
 
     rpc.registerProxyClass('Tiger', Tiger, {
         staticFunctions: ['withName'],
+        staticProperties: ['count'],
+
         functions: [{ name: 'sprint', returns: 'void'}],
-        readonlyProperties: ['name']
+        readonlyProperties: ['name'],
+        proxiedProperties: ['age']
     });
 
 

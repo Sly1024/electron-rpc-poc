@@ -6,7 +6,8 @@
         "moduleResolution": "Node",
         "baseUrl": "./",
         "composite": true,
-        "declaration": true
+        "declaration": true,
+        "sourceMap": true
     },
     "include": ["./**/*.ts"]
 }

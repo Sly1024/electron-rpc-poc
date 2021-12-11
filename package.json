@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "PoC for Electron RPC with preloading",
   "scripts": {
-    "start": "electron ./dist/app/app.js"
+    "start": "electron --inspect ./dist/app/app.js"
   },
   "author": "szilveszter.safar@gmail.com",
   "license": "MIT",
@@ -12,6 +12,7 @@
     "nanoid": "^3.1.30",
     "rollup": "^2.60.2",
     "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-sourcemaps": "^0.6.3",
     "rollup-plugin-typescript2": "^0.31.1",
     "typescript": "^4.5.2"
   }
