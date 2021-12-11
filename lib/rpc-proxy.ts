@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid/non-secure';
 import { RemoteObjectRegistry } from './remote-object-registry';
-import type { ArgumentDescriptor, ClassDescriptor, ClassDescriptors, Descriptor, FunctionDescriptor, FunctionReturnType, ObjectDescriptor, ObjectDescriptors, PropertyDescriptor } from './rpc-descriptor-types';
+import { ArgumentDescriptor, ClassDescriptor, ClassDescriptors, Descriptor, FunctionDescriptor, FunctionReturnType, getArgumentDescriptorByIdx, getFunctionDescriptor, getPropertyDescriptor, getPropName, ObjectDescriptor, ObjectDescriptors } from './rpc-descriptor-types';
 import type { RPC_AnyCallMessage, RPC_CallAction, RPC_DescriptorsResultMessage, RPC_Message } from './rpc-message-types';
 
 
@@ -132,14 +132,14 @@ export class RPCService {
                     break;
                 }
                 case 'prop_set': {
-                    const descr = this.getPropertyDescriptor(descriptor as ObjectDescriptor, msg.prop);
+                    const descr = getPropertyDescriptor(descriptor as ObjectDescriptor, msg.prop);
                     target[msg.prop] = this.postprocessSerialization(msg.args[0], replyChannel, descr.argument);
                     break;
                 }
-                case 'rpc_call': {
+                case 'mthd_call': {
                     scope = target;
-                    descriptor = this.getFunctionDescriptor(entry.descriptor as ObjectDescriptor, msg.prop);
-                    target = target?.[msg.prop];
+                    descriptor = getFunctionDescriptor(entry.descriptor as ObjectDescriptor, msg.prop);
+                    target = target[msg.prop];
                     // NO break here!
                 }
                 case 'fn_call': {
@@ -182,7 +182,7 @@ export class RPCService {
                 case 'prop_get':
                 case 'prop_set':
                 case 'fn_call':
-                case 'rpc_call': {
+                case 'mthd_call': {
                     this.callTargetFunction(message, replyChannel);
                     break;
                 }
@@ -204,28 +204,13 @@ export class RPCService {
         }
     }
 
-    private getPropName(descriptor: string | { name?: string }) {
-        return typeof descriptor === 'string' ? descriptor : descriptor.name;
-    }
-
-    private getArgumentDescriptorByIdx(func: FunctionDescriptor, idx?: number) {
-        return typeof func === 'object' ? func.arguments?.find(arg => arg.idx == null || arg.idx === idx) : undefined;
-    }
-
-    private getFunctionDescriptor(descriptor: ObjectDescriptor, funcName: string) {
-        return <FunctionDescriptor>descriptor.functions?.find(func => typeof func === 'object' && func.name === funcName);
-    }
-
-    private getPropertyDescriptor(descriptor: ObjectDescriptor, propName: string) {
-        return <PropertyDescriptor>descriptor.proxiedProperties?.find(prop => typeof prop === 'object' && prop.name === propName);
-    }
 
     private serializeFunctionArgs(func: FunctionDescriptor, args: any[]) {
-        return args.map((arg, idx) => this.preprocessSerialization(arg, this.getArgumentDescriptorByIdx(func, idx)));
+        return args.map((arg, idx) => this.preprocessSerialization(arg, getArgumentDescriptorByIdx(func, idx)));
     }
 
     private deserializeFunctionArgs(func: FunctionDescriptor, args: any[], replyChannel: RPCChannel) {
-        return args.map((arg, idx) => this.postprocessSerialization(arg, replyChannel, this.getArgumentDescriptorByIdx(func, idx)));
+        return args.map((arg, idx) => this.postprocessSerialization(arg, replyChannel, getArgumentDescriptorByIdx(func, idx)));
     }
 
     private createVoidProxyFunction(objId: string, func: FunctionDescriptor, action: RPC_CallAction, replyChannel: RPCChannel) {
@@ -251,7 +236,7 @@ export class RPCService {
             if (typeof response !== 'object' || response.rpc_marker !== 'webrpc') throw new Error(`Invalid response ${JSON.stringify(response)}`);
 
             if (!response.success) throw new Error(response.result);
-            return response.result;
+            return this.postprocessSerialization(response.result, replyChannel);
         };
         return fn;
     }
@@ -312,17 +297,28 @@ export class RPCService {
 
     private createRemoteObject(objId: string, descriptor: ObjectDescriptor, obj = {}) {
         if (descriptor.functions) for (const prop of descriptor.functions) {
-            obj[this.getPropName(prop)] = this.createProxyFunction(objId, prop, 'rpc_call');
+            obj[getPropName(prop)] = this.createProxyFunction(objId, prop, 'mthd_call');
         }
 
         if (descriptor.proxiedProperties) for (const prop of descriptor.proxiedProperties) {
-            Object.defineProperty(obj, this.getPropName(prop), {
+            Object.defineProperty(obj, getPropName(prop), {
                 get: this.createProxyFunction(objId, prop, 'prop_get', 'sync'),
                 set: typeof prop === 'object' && prop.readonly ? undefined : this.createProxyFunction(objId, prop, 'prop_set', 'sync')
             });
         }
 
         return obj;
+    }
+
+    private createRemoteInstance(objId: string, classId: string, props: any) {
+        if (this.remoteObjectRegistry.has(objId)) return this.remoteObjectRegistry.get(objId);
+        
+        const descriptor = this.remoteClassDescriptors[classId];
+        if (descriptor) {
+            const proto = this.createRemoteObject(objId, descriptor);
+            this.remoteObjectRegistry.register(objId, props, () => this.sendObjectDied(objId));
+            return Object.setPrototypeOf(props, proto);
+        }
     }
 
     private registerLocalObj(obj: any, descriptor: Descriptor) {
@@ -344,7 +340,7 @@ export class RPCService {
                     const props = {};
 
                     if (entry.descriptor.readonlyProperties) for (const prop of entry.descriptor.readonlyProperties) {
-                        const propName = this.getPropName(prop);
+                        const propName = getPropName(prop);
                         props[propName] = this.preprocessSerialization(obj[propName]);
                     }
                     return { _rpc_type: 'object', objId, classId: entry.descriptor.classId, props };
@@ -370,11 +366,8 @@ export class RPCService {
                     return this.createRemoteFunction(obj.objId, replyChannel, descriptor);
                 }
                 if (obj._rpc_type === 'object') {
-                    const descriptor = this.remoteClassDescriptors[obj.classId];
-                    if (descriptor) {
-                        const proto = this.createRemoteObject(obj.objId, descriptor);
-                        return Object.setPrototypeOf(obj.props, proto);
-                    }
+                    const remoteInstance = this.createRemoteInstance(obj.objId, obj.classId, obj.props);
+                    if (remoteInstance) return remoteInstance;
                 }
                 for (const key of Object.keys(obj)) {
                     obj[key] = this.postprocessSerialization(obj[key], replyChannel);
@@ -385,13 +378,16 @@ export class RPCService {
         return obj;
     }
 
+    private sendObjectDied(objId: string, replyChannel = this.channel) {
+        this.sendAsyncIfPossible({ action: 'obj_died', objId }, replyChannel);
+    }
+
     private createRemoteFunction(objId: string, replyChannel: RPCChannel, descriptor?: FunctionDescriptor) {
         let fn = this.remoteObjectRegistry.get(objId);
         if (!fn) {
-            descriptor.type = 'function';
+            if (descriptor) descriptor.type = 'function';
             fn = this.createProxyFunction(objId, descriptor, 'fn_call', 'async', replyChannel);
-            this.remoteObjectRegistry.register(objId, fn, 
-                (() => { this.sendAsyncIfPossible({ action: 'obj_died', objId }, replyChannel) }));
+            this.remoteObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId));
         }
         return fn;
     }

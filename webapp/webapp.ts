@@ -10,4 +10,4 @@ rpc.requestRemoteDescriptors();
 export const api = rpc.createProxyObject('servobj');
 export const Tiger = rpc.createProxyClass('Tiger');
 
-
+export const BrowserWindow = rpc.createProxyClass('BrowserWindow');

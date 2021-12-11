@@ -64,6 +64,14 @@ function createWindow() {
         proxiedProperties: ['age']
     });
 
+    rpc.registerProxyClass('BrowserWindow', BrowserWindow, {
+        staticFunctions: [{ name: 'fromId', returns: 'sync' }, 'getAllWindows'],
+        readonlyProperties: ['id'],
+        functions: ['close', 'focus', 'blur', 'show', 'hide', 'setBounds', 'getBounds', 'getParentWindow', 'setParentWindow',
+            { name: 'addListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]},
+            { name: 'removeListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]}
+        ]
+    });
 
     const mainWindow = new BrowserWindow({
         width: 1200, height: 850,
