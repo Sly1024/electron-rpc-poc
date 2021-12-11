@@ -3,6 +3,7 @@ export type PropertyReturnType = Exclude<FunctionReturnType, 'void'>;
 
 export type PropertyDescriptor = {
     name: string;
+    argument?: ArgumentDescriptor;
     returns?: PropertyReturnType;   // default is 'sync'
     readonly?: boolean;             // default false
 }

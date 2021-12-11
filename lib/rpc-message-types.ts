@@ -1,6 +1,6 @@
 import { ClassDescriptors, ObjectDescriptors } from './rpc-descriptor-types';
 
-export type RPC_MessageBase = { rpc_marker?: 'webrpc', error?: any };
+export type RPC_MessageBase = { rpc_marker?: 'webrpc' };
 
 // descriptor request & response
 export type RPC_GetDescriptorsMessage = RPC_MessageBase & { action: 'get_descriptors' };
@@ -18,7 +18,9 @@ export type RPC_PropGetMessage = { action: 'prop_get', prop: string } & RPC_AllF
 export type RPC_PropSetMessage = { action: 'prop_set', prop: string } & RPC_AllFnCallMessage;
 export type RPC_RpcCallMessage = { action: 'rpc_call', prop: string } & RPC_AllFnCallMessage;
 
-export type RPC_CallAction = (RPC_FnCallMessage | RPC_RpcCallMessage | RPC_PropGetMessage | RPC_PropSetMessage)['action'];
+export type RPC_AnyCallMessage = RPC_FnCallMessage | RPC_RpcCallMessage | RPC_PropGetMessage | RPC_PropSetMessage;
+
+export type RPC_CallAction = RPC_AnyCallMessage['action'];
 
 // function result messages
 export type RPC_FnResultMessageBase = RPC_MessageBase & { action: 'fn_reply', success: boolean; result: any };

@@ -8,5 +8,6 @@ rpc.connect(rpcChannel);
 rpc.requestRemoteDescriptors();
 
 export const api = rpc.createProxyObject('servobj');
+export const Tiger = rpc.createProxyClass('Tiger');
 
 
