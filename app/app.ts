@@ -23,12 +23,14 @@ function createWindow() {
         logThis: (msg: string) => (console.log(msg), "OK"),
         add: (a: number, b: number) => a + b,
         callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn("hello"+ ++counter), 2000); },
-        callMeIllCallYou: async (fn) => await fn(1023) + 2
+        callMeIllCallYou: async (fn) => await fn(1023) + 2,
+        promiseMe: (p: Promise<string>) => p.then(val => console.log('promised', val))
     };
 
     rpc.registerTargetObject('servobj', myServerObject, {
         functions: [
             'logThis', // async
+            'promiseMe',
             { name: 'add', returns: 'sync' },
             { name: 'callMeLater', returns: 'void', arguments:[ { returns: 'void' } ] },
             { name: 'callMeIllCallYou', returns: 'void', arguments:[ { type: 'function', returns: 'async' } ] }
@@ -56,18 +58,21 @@ function createWindow() {
     }
 
     rpc.registerProxyClass('Tiger', Tiger, {
+        ctor: {},
         staticFunctions: ['withName'],
         staticProperties: ['count'],
 
         functions: [{ name: 'sprint', returns: 'void'}],
         readonlyProperties: ['name'],
-        proxiedProperties: ['age']
+        proxiedProperties: [{ name: 'age', get: {returns: 'async'} }]
     });
 
     rpc.registerProxyClass('BrowserWindow', BrowserWindow, {
+        ctor: { returns: 'sync' },
         staticFunctions: [{ name: 'fromId', returns: 'sync' }, 'getAllWindows'],
         readonlyProperties: ['id'],
         functions: ['close', 'focus', 'blur', 'show', 'hide', 'setBounds', 'getBounds', 'getParentWindow', 'setParentWindow',
+            'loadURL',
             { name: 'addListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]},
             { name: 'removeListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]}
         ]

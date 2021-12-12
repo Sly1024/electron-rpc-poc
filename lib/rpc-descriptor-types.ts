@@ -2,17 +2,18 @@ export type FunctionReturnType = 'sync' | 'async' | 'void';
 export type PropertyReturnType = Exclude<FunctionReturnType, 'void'>;
 
 export type PropertyDescriptor = {
+    type?: 'property';
     name: string;
-    argument?: ArgumentDescriptor;
-    returns?: PropertyReturnType;   // default is 'sync'
-    readonly?: boolean;             // default false
+    get?: FunctionDescriptor<PropertyReturnType>;   // default is 'sync'
+    set?: FunctionDescriptor<'void'>;
+    readonly?: boolean;   // default is false
 }
 
-export type FunctionDescriptor = {
+export type FunctionDescriptor<TReturn extends FunctionReturnType = FunctionReturnType> = {
     type?: 'function';
     name?: string;
     arguments?: ArgumentDescriptor[];
-    returns?: FunctionReturnType;   // default is 'async'
+    returns?: TReturn;   // default is 'async'
 };
 
 export type ArgumentDescriptor = FunctionDescriptor & {
@@ -27,14 +28,15 @@ export type ObjectDescriptor = {
 };
 
 export type ClassDescriptor = ObjectDescriptor & {
+    ctor?: FunctionDescriptor;
     staticFunctions?: (string|FunctionDescriptor)[];
     staticProperties?: (string|PropertyDescriptor)[];
     readonlyProperties?: (string|PropertyDescriptor)[];
 };
 
-export type Descriptor = ObjectDescriptor | FunctionDescriptor;
+export type Descriptor = ObjectDescriptor | FunctionDescriptor | PropertyDescriptor;
 
-export type ObjectDescriptors = { [key: string]: Descriptor };
+export type ObjectDescriptors = { [key: string]: ObjectDescriptor | FunctionDescriptor };
 export type ClassDescriptors = { [key: string]: ClassDescriptor };
 
 // util functions
@@ -42,14 +44,14 @@ export function getPropName(descriptor: string | { name?: string }) {
     return typeof descriptor === 'string' ? descriptor : descriptor.name;
 }
 
-export function getArgumentDescriptorByIdx(func: FunctionDescriptor, idx?: number) {
-    return typeof func === 'object' ? func.arguments?.find(arg => arg.idx == null || arg.idx === idx) : undefined;
+export function getArgumentDescriptor(descriptor: FunctionDescriptor, idx?: number) {
+    return typeof descriptor === 'object' && descriptor.arguments?.find(arg => arg.idx == null || arg.idx === idx);
 }
 
 export function getFunctionDescriptor(descriptor: ObjectDescriptor, funcName: string) {
     return <FunctionDescriptor>descriptor.functions?.find(func => typeof func === 'object' && func.name === funcName);
 }
 
-export function getPropertyDescriptor(descriptor: ObjectDescriptor, propName: string) {
-    return <PropertyDescriptor>descriptor.proxiedProperties?.find(prop => typeof prop === 'object' && prop.name === propName);
+export function getPropertyDescriptor(descriptor?: ObjectDescriptor, propName?: string) {
+    return <PropertyDescriptor>descriptor?.proxiedProperties?.find(prop => typeof prop === 'object' && prop.name === propName);
 }

@@ -1,4 +1,4 @@
-import {RPCChannel, RPCService} from '../lib/rpc-proxy';
+import { RPCChannel, RPCService } from '../lib/rpc-proxy';
 
 declare const rpcChannel: RPCChannel;
 
