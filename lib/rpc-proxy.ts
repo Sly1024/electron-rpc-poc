@@ -51,7 +51,8 @@ export class RPCService {
 
     private readonly remoteObjectRegistry = new RemoteObjectRegistry();
     private readonly localObjectRegistry = new Map<string, LocalObjectRegistryEntry>();
-    private readonly classRegistry = new Map<string, ClassRegistryEntry>();
+    private readonly localClassRegistry = new Map<string, ClassRegistryEntry>();
+    private readonly remoteClassRegistry = new Map<string, Function>();
 
     connect(channel: RPCChannel) {
         this.channel = channel;
@@ -88,7 +89,7 @@ export class RPCService {
         this.sendSyncIfPossible({
             action: 'descriptors',
             objects: this.getDescriptors(this.localObjectRegistry),
-            classes: this.getDescriptors(this.classRegistry)
+            classes: this.getDescriptors(this.localClassRegistry)
         }, replyChannel);
     }
 
@@ -237,7 +238,8 @@ export class RPCService {
         const _this = this;
         const fn = function (...args: any[]) {
             if (fn['rpc_disposed']) throw new Error(`Remote function has been disposed`);
-            _this.sendAsyncIfPossible({ action, callType: 'void', objId,
+            _this.sendAsyncIfPossible({ action, callType: 'void', 
+                objId: objId ?? this._rpc_objId,
                 prop: func.name, 
                 args: _this.serializeFunctionArgs(func, args, replyChannel) 
             });
@@ -249,7 +251,8 @@ export class RPCService {
         const _this = this;
         const fn = function (...args: any[]) {
             if (fn['rpc_disposed']) throw new Error(`Remote function has been disposed`);
-            let response = _this.sendSync({ action, callType: 'sync', objId, 
+            let response = _this.sendSync({ action, callType: 'sync', 
+                objId: objId ?? this._rpc_objId,
                 prop: func.name, 
                 args: _this.serializeFunctionArgs(func, args, replyChannel) 
             }, replyChannel);
@@ -270,7 +273,9 @@ export class RPCService {
                 if (fn['rpc_disposed']) throw new Error(`Remote function has been disposed`);
                 _this.callId++;
                 _this.sendAsync({
-                    action, callType: 'async', objId, callId: _this.callId,
+                    action, callType: 'async',
+                    objId: objId ?? this._rpc_objId,
+                    callId: _this.callId,
                     prop: func.name, 
                     args: _this.serializeFunctionArgs(func, args, replyChannel)
                 }, replyChannel);
@@ -306,18 +311,25 @@ export class RPCService {
     }
 
     createProxyClass(classId: string) {
+        if (this.remoteClassRegistry.has(classId)) return this.remoteClassRegistry.get(classId);
+
         const descriptor = this.remoteClassDescriptors?.[classId];
         if (!descriptor) {
             throw new Error(`No class registered with ID '${classId}'`);
         }
 
         const clazz = descriptor.ctor ? this.createProxyFunction(classId + '.ctor', descriptor.ctor, 'ctor_call', 'sync') 
-            : function () { throw new Error(`Constructor of ${classId} is not proxied`); };
+            : function () { throw new Error(`Constructor of class '${classId}' is not defined`); };
 
+        this.createRemoteObject(null, descriptor, clazz.prototype);
+
+        // add static functions/props
         this.createRemoteObject(classId, {
             functions: descriptor.staticFunctions,
             proxiedProperties: descriptor.staticProperties
         }, clazz);
+
+        this.remoteClassRegistry.set(classId, clazz);
 
         return clazz;
     }
@@ -338,23 +350,21 @@ export class RPCService {
         return obj;
     }
 
-    private createRemoteInstance(objId: string, classId: string, props: any) {
+    private createRemoteInstance(objId: string, classId: string, props: any, replyChannel: RPCChannel) {
         if (this.remoteObjectRegistry.has(objId)) return this.remoteObjectRegistry.get(objId);
         
-        let obj: any = props;
+        let obj: any = props || {};
 
         // special case for Promise
         if (classId === 'Promise') {
             obj = new Promise((resolve, reject) => this.asyncCallbacks.set(objId, { resolve, reject }));
+        } else {
+            obj._rpc_objId = objId;
+            const clazz = this.createProxyClass(classId);
+            Object.setPrototypeOf(obj, clazz.prototype);
         }
 
-        const descriptor = this.remoteClassDescriptors?.[classId];
-        if (descriptor) {
-            const proto = this.createRemoteObject(objId, descriptor);
-            Object.setPrototypeOf(obj, proto);
-        }
-
-        this.remoteObjectRegistry.register(objId, obj, () => this.sendObjectDied(objId));
+        this.remoteObjectRegistry.register(objId, obj, () => this.sendObjectDied(objId, replyChannel));
         return obj;
     }
 
@@ -371,18 +381,21 @@ export class RPCService {
     private preprocessSerialization(obj: any, replyChannel: RPCChannel, descriptor?: Descriptor) {
         switch (typeof obj) {
             case 'object': {
+                // special case for Promise
                 if (obj.constructor === Promise) {
                     if (!this.localObjectRegistry.has(obj['_rpc_objId'])) {
+                        let result: any;
+                        let success: boolean;
                         obj.then(
-                            (result) => this.sendAsyncIfPossible({ action: 'fn_reply', callType: 'async', success: true, result, callId: objId }, replyChannel),
-                            (result) => this.sendAsyncIfPossible({ action: 'fn_reply', callType: 'async', success: false, result, callId: objId }, replyChannel),
-                        );
+                            (value) => { result = value; success = true },
+                            (value) => { result = value; success = false }
+                        ).finally(() => this.sendAsyncIfPossible({ action: 'fn_reply', callType: 'async', success, result, callId: objId }, replyChannel));
                     }
                     const objId = this.registerLocalObj(obj, {});
                     return { _rpc_type: 'object', objId, classId: 'Promise' };
                 }
 
-                const entry = this.classRegistry.get(obj.constructor._rpc_classId);
+                const entry = this.localClassRegistry.get(obj.constructor._rpc_classId);
                 if (entry) {
                     const objId = this.registerLocalObj(obj, entry.descriptor);
                     const props = {};
@@ -413,8 +426,7 @@ export class RPCService {
 
         switch (obj._rpc_type) {
             case 'object': {
-                const remoteInstance = this.createRemoteInstance(obj.objId, obj.classId, obj.props);
-                if (remoteInstance) return remoteInstance;
+                return this.createRemoteInstance(obj.objId, obj.classId, obj.props, replyChannel);
             }
             case 'function': {
                 return this.createRemoteFunction(obj.objId, replyChannel, <FunctionDescriptor>descriptor);
@@ -437,7 +449,7 @@ export class RPCService {
         if (!fn) {
             if (descriptor) descriptor.type = 'function';
             fn = this.createProxyFunction(objId, descriptor, 'fn_call', 'async', replyChannel);
-            this.remoteObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId));
+            this.remoteObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId, replyChannel));
         }
         return fn;
     }
@@ -454,7 +466,7 @@ export class RPCService {
         }
 
         classCtor._rpc_classId = classId;
-        this.classRegistry.set(classId, { classCtor, descriptor });
+        this.localClassRegistry.set(classId, { classCtor, descriptor });
         
         if (descriptor.ctor) {
             this.registerTargetObject(classId + '.ctor', classCtor, descriptor.ctor);

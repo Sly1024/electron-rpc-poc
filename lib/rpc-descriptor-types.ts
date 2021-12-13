@@ -5,7 +5,7 @@ export type PropertyDescriptor = {
     type?: 'property';
     name: string;
     get?: FunctionDescriptor<PropertyReturnType>;   // default is 'sync'
-    set?: FunctionDescriptor<'void'>;
+    set?: FunctionDescriptor<'void' | 'sync'>;
     readonly?: boolean;   // default is false
 }
 
