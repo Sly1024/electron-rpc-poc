@@ -242,7 +242,7 @@ export class RPCService {
                 objId: objId ?? this._rpc_objId,
                 prop: func.name, 
                 args: _this.serializeFunctionArgs(func, args, replyChannel) 
-            });
+            }, replyChannel);
         };
         return fn;
     }
