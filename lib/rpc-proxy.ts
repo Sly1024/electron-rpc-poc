@@ -350,7 +350,8 @@ export class RPCService {
         return obj;
     }
 
-    private createRemoteInstance(objId: string, classId: string, props: any, replyChannel: RPCChannel) {
+    private createRemoteInstance(classId: string, props: any, replyChannel: RPCChannel) {
+        const objId = props._rpc_objId;
         if (this.remoteObjectRegistry.has(objId)) return this.remoteObjectRegistry.get(objId);
         
         let obj: any = props || {};
@@ -392,20 +393,20 @@ export class RPCService {
                         ).finally(() => this.sendAsyncIfPossible({ action: 'fn_reply', callType: 'async', success, result, callId: objId }, replyChannel));
                     }
                     const objId = this.registerLocalObj(obj, {});
-                    return { _rpc_type: 'object', objId, classId: 'Promise' };
+                    return { _rpc_type: 'object', props: { _rpc_objId: objId }, classId: 'Promise' };
                 }
 
                 const entry = this.localClassRegistry.get(obj.constructor._rpc_classId);
                 if (entry) {
                     const objId = this.registerLocalObj(obj, entry.descriptor);
-                    const props = {};
+                    const props = { _rpc_objId: objId };
 
                     if (entry.descriptor.readonlyProperties) for (const prop of entry.descriptor.readonlyProperties) {
                         const propName = getPropName(prop);
                         props[propName] = this.preprocessSerialization(obj[propName], replyChannel);
                     }
 
-                    return { _rpc_type: 'object', objId, classId: entry.descriptor.classId, props };
+                    return { _rpc_type: 'object', classId: entry.descriptor.classId, props };
                 }
 
                 for (const key of Object.keys(obj)) {
@@ -426,7 +427,7 @@ export class RPCService {
 
         switch (obj._rpc_type) {
             case 'object': {
-                return this.createRemoteInstance(obj.objId, obj.classId, obj.props, replyChannel);
+                return this.createRemoteInstance(obj.classId, obj.props, replyChannel);
             }
             case 'function': {
                 return this.createRemoteFunction(obj.objId, replyChannel, <FunctionDescriptor>descriptor);

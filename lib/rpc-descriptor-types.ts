@@ -31,7 +31,7 @@ export type ClassDescriptor = ObjectDescriptor & {
     ctor?: FunctionDescriptor;
     staticFunctions?: (string|FunctionDescriptor)[];
     staticProperties?: (string|PropertyDescriptor)[];
-    readonlyProperties?: (string|PropertyDescriptor)[];
+    readonlyProperties?: string[];
 };
 
 export type Descriptor = ObjectDescriptor | FunctionDescriptor | PropertyDescriptor;
