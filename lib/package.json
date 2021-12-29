@@ -4,7 +4,8 @@
     "description": "PoC lib for Electron RPC with preloading",
 
     "scripts": {
-      "watch": "tsc -p ./tsconfig.json -w"
+      "watch": "tsc -p ./tsconfig.json -w",
+      "doc": "typedoc --exclude ./rpc-message-types.ts --entryPointStrategy expand ."
     },
     "author": "szilveszter.safar@gmail.com",
     "license": "MIT",

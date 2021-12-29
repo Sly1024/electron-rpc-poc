@@ -1,16 +1,17 @@
-import {ipcRenderer, contextBridge} from 'electron';
-import type {RPCChannel} from './rpc-proxy';
+import { contextBridge, ipcRenderer } from 'electron';
+import type { RPCChannel } from './rpc-proxy';
+import { RPC_Message } from './rpc-message-types';
 
 // a communication channel
 const channel: RPCChannel = {
-    sendSync: (message: any) => {
+    sendSync: (message: RPC_Message) => {
         const result = ipcRenderer.sendSync('channel', message);
         if (result?.error) throw new Error(result.error);
         return result;
     },
-    sendAsync: (message: any) => ipcRenderer.send('channel', message),
-    receive: (callback: (message: any, replyChannel?: RPCChannel) => void) => { 
-        ipcRenderer.on('channel', (event, message) => callback(message));
+    sendAsync: (message: RPC_Message) => ipcRenderer.send('channel', message),
+    receive: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => { 
+        ipcRenderer.on('channel', (_event, message) => callback(message));
     }
 }
 

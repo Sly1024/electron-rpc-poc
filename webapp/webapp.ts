@@ -1,13 +1,14 @@
+import { nanoid } from 'nanoid/non-secure';
 import { RPCChannel, RPCService } from '../lib/rpc-proxy';
 
 declare const rpcChannel: RPCChannel;
 
-const rpc = new RPCService();
+const rpc = new RPCService(nanoid);
 rpc.connect(rpcChannel);
 
 rpc.requestRemoteDescriptors();
 
-export const api = rpc.createProxyObject('servobj');
-export const Tiger = rpc.createProxyClass('Tiger');
+export const api = rpc.getProxyObject('servobj');
+export const Tiger = rpc.getProxyClass('Tiger');
 
-export const BrowserWindow = rpc.createProxyClass('BrowserWindow');
+export const BrowserWindow = rpc.getProxyClass('BrowserWindow');

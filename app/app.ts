@@ -1,13 +1,15 @@
-import {app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { nanoid } from 'nanoid/non-secure';
 import * as path from 'path';
+import { RPC_Message } from '../lib/rpc-message-types';
 import { RPCChannel, RPCService } from '../lib/rpc-proxy';
 
 
 function createWindow() {
-    const rpc = new RPCService();
+    const rpc = new RPCService(nanoid);
 
     rpc.connect({
-        receive: (callback: (message: any, replyChannel?: RPCChannel) => void) => {
+        receive: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => {
             ipcMain.on('channel', (event, message) => {
                 callback(message, {
                     sendAsync: (msg) => event.reply('channel', msg),
@@ -27,7 +29,7 @@ function createWindow() {
         promiseMe: (p: Promise<string>) => p.then(val => console.log('promised', val))
     };
 
-    rpc.registerTargetObject('servobj', myServerObject, {
+    rpc.registerHostObject('servobj', myServerObject, {
         functions: [
             'logThis', // async
             'promiseMe',
@@ -57,17 +59,17 @@ function createWindow() {
         }
     }
 
-    rpc.registerProxyClass('Tiger', Tiger, {
+    rpc.registerHostClass('Tiger', Tiger, {
         ctor: {},
         staticFunctions: ['withName'],
-        staticProperties: ['count'],
+        staticProxiedProperties: ['count'],
 
         functions: [{ name: 'sprint', returns: 'void'}],
         readonlyProperties: ['name'],
         proxiedProperties: [{ name: 'age', get: {returns: 'async'} }]
     });
 
-    rpc.registerProxyClass('BrowserWindow', BrowserWindow, {
+    rpc.registerHostClass('BrowserWindow', BrowserWindow, {
         ctor: { returns: 'sync' },
         staticFunctions: [{ name: 'fromId', returns: 'sync' }, 'getAllWindows'],
         readonlyProperties: ['id'],
