@@ -22,9 +22,9 @@ function createWindow() {
     let counter = 0;
 
     const myServerObject = {
-        logThis: (msg: string) => (console.log(msg), "OK"),
+        logThis: (msg: string) => (console.log(msg), 'OK'),
         add: (a: number, b: number) => a + b,
-        callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn("hello"+ ++counter), 2000); },
+        callMeLater: (fn) => { console.log('callMeLater'); setTimeout(() => fn('hello'+ ++counter), 2000); },
         callMeIllCallYou: async (fn) => await fn(1023) + 2,
         promiseMe: (p: Promise<string>) => p.then(val => console.log('promised', val))
     };

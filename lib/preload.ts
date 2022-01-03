@@ -13,6 +13,6 @@ const channel: RPCChannel = {
     receive: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => { 
         ipcRenderer.on('channel', (_event, message) => callback(message));
     }
-}
+};
 
 contextBridge.exposeInMainWorld('rpcChannel', channel);

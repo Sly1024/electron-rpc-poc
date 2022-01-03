@@ -277,8 +277,8 @@ export class RPCService {
 
             if (msg.callType === 'async') {
                 Promise.resolve(result)
-                .then(value => result = value, err => { result = err; success = false; })
-                .then(() => this.sendAsync({ action: 'fn_reply', callType: 'async', success, result, callId: msg.callId }, replyChannel));
+                    .then(value => result = value, err => { result = err; success = false; })
+                    .then(() => this.sendAsync({ action: 'fn_reply', callType: 'async', success, result, callId: msg.callId }, replyChannel));
             }
         } catch (err: any) {
             success = false;
@@ -343,7 +343,7 @@ export class RPCService {
         // eslint-disable-next-line @typescript-eslint/no-this-alias
         const _this = this;
         const fn = function (this: any, ...args: any[]) {
-            if ((fn as any)['rpc_disposed']) throw new Error(`Remote function has been disposed`);
+            if ((fn as any)['rpc_disposed']) throw new Error('Remote function has been disposed');
             _this.sendAsyncIfPossible({ action, callType: 'void', 
                 objId: objId ?? this._rpc_objId,
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -358,7 +358,7 @@ export class RPCService {
         // eslint-disable-next-line @typescript-eslint/no-this-alias
         const _this = this;
         const fn = function (this: any, ...args: any[]) {
-            if ((fn as any)['rpc_disposed']) throw new Error(`Remote function has been disposed`);
+            if ((fn as any)['rpc_disposed']) throw new Error('Remote function has been disposed');
             const response = _this.sendSync({ action, callType: 'sync', 
                 objId: objId ?? this._rpc_objId,
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -366,7 +366,7 @@ export class RPCService {
                 args: _this.serializeFunctionArgs(func, args, replyChannel) 
             }, replyChannel);
 
-            if (!response) throw new Error(`No response received`);
+            if (!response) throw new Error('No response received');
             if (typeof response !== 'object' || response.rpc_marker !== 'webrpc') throw new Error(`Invalid response ${JSON.stringify(response)}`);
 
             if (!response.success) throw new Error(response.result);
@@ -380,7 +380,7 @@ export class RPCService {
         const _this = this;
         const fn = function (this: any, ...args: any[]) {
             return new Promise((resolve, reject) => {
-                if ((fn as any)['rpc_disposed']) throw new Error(`Remote function has been disposed`);
+                if ((fn as any)['rpc_disposed']) throw new Error('Remote function has been disposed');
                 _this.callId++;
                 _this.sendAsync({
                     action, callType: 'async',
@@ -488,8 +488,8 @@ export class RPCService {
                         let result: unknown;
                         let success: boolean;
                         obj.then(
-                            (value) => { result = value; success = true },
-                            (value) => { result = value; success = false }
+                            (value) => { result = value; success = true; },
+                            (value) => { result = value; success = false; }
                         ).finally(() => this.sendAsyncIfPossible({ action: 'fn_reply', callType: 'async', success, result, callId: objId }, replyChannel));
                     }
                     const objId = this.registerLocalObj(obj, {});
