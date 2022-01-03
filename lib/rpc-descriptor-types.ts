@@ -1,6 +1,7 @@
 /**
  * The descriptors are used to describe what properties/functions to expose on an object 
  * and what are the function return behaviors.
+ * @module
  */
 
 /**
@@ -101,8 +102,19 @@ export interface ClassDescriptor extends ObjectDescriptor {
      */
     ctor?: FunctionDescriptor;
 
+    /**
+     * Same as "functions" on an object.
+     */
     staticFunctions?: (string|FunctionDescriptor)[];
+
+    /**
+     * Same as "proxiedProperties" on an object.
+     */
     staticProxiedProperties?: (string|PropertyDescriptor)[];
+
+    /**
+     * Same as "readonlyProperties" on an object.
+     */
     staticReadonlyProperties?: string[];
 }
 

@@ -5,7 +5,7 @@
 
     "scripts": {
       "watch": "tsc -p ./tsconfig.json -w",
-      "doc": "typedoc --exclude ./rpc-message-types.ts --entryPointStrategy expand ."
+      "doc": "typedoc --excludeInternal --entryPointStrategy expand ."
     },
     "author": "szilveszter.safar@gmail.com",
     "license": "MIT",
