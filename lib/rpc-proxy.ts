@@ -498,7 +498,7 @@ export class RPCService {
             const descr = typeof prop === 'string' ? { name: prop } : prop;
             Object.defineProperty(obj, descr.name, {
                 get: this.createProxyFunction(objId, { ...descr.get, name: descr.name }, 'prop_get', 'sync'),
-                set: descr.readonly ? undefined : this.createProxyFunction(objId, { ...descr.set, name: descr.name }, 'prop_set', 'void')
+                set: descr.readonly ? undefined : this.createProxyFunction(objId, { ...descr.set, name: descr.name }, 'prop_set', 'sync')
             });
         }
 

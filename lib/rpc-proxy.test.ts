@@ -2,26 +2,32 @@ import { RPCChannel, RPCService } from './rpc-proxy';
 import { RPC_Message } from './rpc-message-types';
 import { nanoid } from 'nanoid/non-secure';
 
+// Going to use jest.useFakeTimers, so store the real setTimeout here
 const realTimeout = setTimeout;
 
 let channel1: RPCChannel, channel2: RPCChannel;
 let rpc1: RPCService, rpc2: RPCService;
 
-let timeoutIds: NodeJS.Timeout[];
+let timeoutObjs: NodeJS.Timeout[];
 
+// uses the real setTimeout and returns a Promise that resolves/rejects afer `milli` milliseconds
 const delayPromise = (milli: number, doReject = false) => new Promise((resolve, reject) => {
-    const timeoutId = realTimeout(() => {
-        const idx = timeoutIds.indexOf(timeoutId);
-        timeoutIds.splice(idx, 1);
+    const timeoutObj = realTimeout(() => {
+        const idx = timeoutObjs.indexOf(timeoutObj);
+        timeoutObjs.splice(idx, 1);
         doReject ? reject() : resolve(undefined);
     }, milli);
 
-    timeoutIds.push(timeoutId);
+    // need to store timeout objects, so we can clear them after tests
+    timeoutObjs.push(timeoutObj);
 });
 
+// this runs a setTimeout(0) async loop until all timers are cleared,
+// or the 4 second timeout is reached
 const waitForAllTimers = () => Promise.race([
     delayPromise(4000, true),
     (async () => {
+        // to make sure the timers are added (timerCount > 0) we do a setTimeout(0) which schedules a macrotask
         await delayPromise(0);
         while (jest.getTimerCount() > 0) {
             await delayPromise(0);
@@ -31,12 +37,13 @@ const waitForAllTimers = () => Promise.race([
 ]);
 
 beforeEach(() => {
-    timeoutIds = [];
+    timeoutObjs = [];
 });
 
 afterEach(() => {
     jest.useRealTimers();
-    timeoutIds.forEach(id => clearTimeout(id));
+    // clear remaining timers, otherwise the node process does not exit
+    timeoutObjs.forEach(id => clearTimeout(id));
 });
 
 beforeEach(() => {
@@ -95,6 +102,11 @@ describe('mock channel', () => {
         const testMsg: any = {};
         const testReply: any = {};
 
+        // the actual execution order is backwards:
+        // - channel2 send(testMsg)
+        // - channel1 receive(testMsg) + send(testReply)
+        // - channel2 receive(testReply)
+
         channel2.receive?.((message) => {
             expect(message).toBe(testReply);
             done();
@@ -127,10 +139,24 @@ describe('host object', () => {
             failAsyncFunc(ping: string) {
                 return new Promise((_resolve, reject) => {
                     setTimeout(() => {
-                        reject(ping + 'pong');
+                        reject(ping + 'err');
                     }, 100);
                 });
             },
+            roID: 'readonly',
+            counter: 1,
+
+            // event emitter emulation
+            listeners: [],
+            addListener(listener: (data: any) => void) {
+                this.listeners.push(listener);
+            },
+            removeListener(listener: (data: any) => void) {
+                this.listeners.splice(this.listeners.indexOf(listener), 1);
+            },
+            fireListeners(data: any) {
+                this.listeners.forEach((listener: (data: any) => void) => listener(data));
+            }
         };
 
         rpc1.registerHostObject('host_obj', hostObj, {
@@ -139,7 +165,10 @@ describe('host object', () => {
                 { name: 'failSyncFunc', returns: 'sync'},
                 { name: 'asyncFunc', returns: 'async'},
                 { name: 'failAsyncFunc', returns: 'async'},
-            ]
+                'addListener', 'removeListener', 'fireListeners'
+            ],
+            readonlyProperties: ['roID'],
+            proxiedProperties: ['counter']
         });
 
         rpc1.sendRemoteDescriptors();
@@ -166,7 +195,38 @@ describe('host object', () => {
         jest.useFakeTimers();
         const promise = proxyObj.failAsyncFunc('ping');
         await waitForAllTimers();
-        await expect(promise).rejects.toEqual('pingpong');
+        await expect(promise).rejects.toEqual('pingerr');
     });
 
+    test('readonly prop', () => {
+        expect(proxyObj.roID).toBe('readonly');
+    });
+
+    test('proxied prop', () => {
+        expect(hostObj.counter).toBe(1);
+        expect(proxyObj.counter).toBe(1);
+        proxyObj.counter++;
+        expect(hostObj.counter).toBe(2);
+        expect(proxyObj.counter).toBe(2);
+    });
+
+    test('passing a function (listener)', async () => {
+        const listener = jest.fn();
+        const data = {};
+        const data2 = {};
+
+        await proxyObj.addListener(listener);
+
+        await proxyObj.fireListeners(data);
+        expect(listener.mock.calls.length).toBe(1);
+        expect(listener.mock.calls[0][0]).toBe(data);
+
+        await proxyObj.fireListeners(data2);
+        expect(listener.mock.calls.length).toBe(2);
+        expect(listener.mock.calls[1][0]).toBe(data2);
+        
+        await proxyObj.removeListener(listener);
+        await proxyObj.fireListeners(data2);
+        expect(listener.mock.calls.length).toBe(2);
+    });
 });

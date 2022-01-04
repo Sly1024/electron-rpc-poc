@@ -38,7 +38,7 @@ export interface PropertyDescriptor {
     get?: FunctionDescriptor<'sync' | 'async'>;   // default is 'sync'
 
     /**
-     * The setter of the property. Default return behavior is 'void'.
+     * The setter of the property. Default return behavior is 'sync'.
      */
     set?: FunctionDescriptor<'void' | 'sync'>;
 
