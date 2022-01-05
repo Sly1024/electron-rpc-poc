@@ -20,8 +20,18 @@ export type FunctionReturnType = 'sync' | 'async' | 'void';
 export interface FunctionDescriptor<TReturn extends FunctionReturnType = FunctionReturnType> {
     type?: 'function';
     name?: string;
+
+    /**
+     * Describes the arguments of the function.
+     * 
+     * Currently only functions need to be described with a [[FunctionDescriptor]], otherwise no descriptor is needed.
+     */
     arguments?: ArgumentDescriptor[];
-    returns?: TReturn;   // default is 'async'
+
+    /**
+     * Return behavior.
+     */
+    returns?: TReturn;
 }
 
 /**
@@ -32,10 +42,11 @@ export interface PropertyDescriptor {
     name: string;
 
     /**
-     * The getter of the property. Default return behavior is 'sync'. 
+     * The getter of the property. 
      * If set to 'async' then it returns a Promise.
+     * Default return behavior is 'sync'. 
      */
-    get?: FunctionDescriptor<'sync' | 'async'>;   // default is 'sync'
+    get?: FunctionDescriptor<'sync' | 'async'>;
 
     /**
      * The setter of the property. Default return behavior is 'sync'.
@@ -67,6 +78,7 @@ export interface ObjectDescriptor {
 
     /**
      * List of functions we want to expose on the proxy object.
+     * Default return behavior is 'async'. 
      */
     functions?: (string|FunctionDescriptor)[];
 
@@ -99,11 +111,13 @@ export interface ClassDescriptor extends ObjectDescriptor {
 
     /**
      * Expose a constructor function that will construct an instance on the host side.
+     * Default return behavior is 'sync'. 
      */
     ctor?: FunctionDescriptor;
 
     /**
      * Same as "functions" on an object.
+     * Default return behavior is 'async'. 
      */
     staticFunctions?: (string|FunctionDescriptor)[];
 
