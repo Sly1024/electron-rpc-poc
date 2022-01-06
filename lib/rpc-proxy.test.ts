@@ -12,29 +12,20 @@ let timeoutObjs: NodeJS.Timeout[];
 
 // uses the real setTimeout and returns a Promise that resolves/rejects afer `milli` milliseconds
 const delayPromise = (milli: number, doReject = false) => new Promise((resolve, reject) => {
-    const timeoutObj = realTimeout(() => {
-        const idx = timeoutObjs.indexOf(timeoutObj);
-        timeoutObjs.splice(idx, 1);
-        doReject ? reject() : resolve(undefined);
-    }, milli);
-
     // need to store timeout objects, so we can clear them after tests
-    timeoutObjs.push(timeoutObj);
+    timeoutObjs.push(realTimeout(() => doReject ? reject() : resolve(undefined), milli));
 });
 
 // this runs a setTimeout(0) async loop until all timers are cleared,
 // or the 4 second timeout is reached
-const waitForAllTimers = () => Promise.race([
-    delayPromise(4000, true),
-    (async () => {
-        // to make sure the timers are added (timerCount > 0) we do a setTimeout(0) which schedules a macrotask
+const waitForAllTimers = async () => {
+    // to make sure the timers are added (timerCount > 0) we do a setTimeout(0) which schedules a macrotask
+    await delayPromise(0);
+    while (jest.getTimerCount() > 0) {
         await delayPromise(0);
-        while (jest.getTimerCount() > 0) {
-            await delayPromise(0);
-            jest.runOnlyPendingTimers();
-        }
-    })()
-]);
+        jest.runOnlyPendingTimers();
+    }
+};
 
 beforeEach(() => {
     timeoutObjs = [];
@@ -42,7 +33,7 @@ beforeEach(() => {
 
 afterEach(() => {
     jest.useRealTimers();
-    // clear remaining timers, otherwise the node process does not exit
+    // clear remaining (real) timers, otherwise the node process does not exit
     timeoutObjs.forEach(id => clearTimeout(id));
 });
 
@@ -228,5 +219,129 @@ describe('host object', () => {
         await proxyObj.removeListener(listener);
         await proxyObj.fireListeners(data2);
         expect(listener.mock.calls.length).toBe(2);
+    });
+});
+
+describe('host function', () => {
+    test('sync', () => {
+        // setup
+        const hostFunc = jest.fn(x => x * 2);
+        rpc1.registerHostFunction('host_func', hostFunc, { returns: 'sync' });
+        rpc1.sendRemoteDescriptors();
+        const proxyFunc = rpc2.getProxyObject('host_func');
+
+        const result = proxyFunc(7);
+
+        expect(result).toBe(14);
+        expect(hostFunc.mock.calls.length).toBe(1);
+    });
+    
+    test('sync fail', () => {
+        // setup
+        const hostFunc = jest.fn(() => { throw new Error('error1'); });
+        rpc1.registerHostFunction('host_func', hostFunc, { returns: 'sync' });
+        rpc1.sendRemoteDescriptors();
+        const proxyFunc = rpc2.getProxyObject('host_func');
+
+        expect(() => proxyFunc(7)).toThrowError();
+    });
+
+    test('async', async () => {
+        // setup
+        const hostFunc = jest.fn(x => Promise.resolve(x * 2));
+        rpc1.registerHostFunction('host_func', hostFunc, { returns: 'async' });
+        rpc1.sendRemoteDescriptors();
+        const proxyFunc = rpc2.getProxyObject('host_func');
+
+        const result = await proxyFunc(7);
+
+        expect(result).toBe(14);
+        expect(hostFunc.mock.calls.length).toBe(1);
+    });
+    
+    test('async fail', async () => {
+        // setup
+        const hostFunc = jest.fn(() => Promise.reject('error'));
+        rpc1.registerHostFunction('host_func', hostFunc, { returns: 'async' });
+        rpc1.sendRemoteDescriptors();
+        const proxyFunc = rpc2.getProxyObject('host_func');
+
+        await expect(proxyFunc(7)).rejects.toMatch('error');
+    });
+});
+
+describe('host Class', () => {
+    let hostClass: any;
+    let proxyClass: any;
+
+    beforeEach(() => {
+        hostClass = class {
+            static readonly CONSTANT = 'foo';
+            static counter = 0;
+            constructor(public readonly name: string) {
+                hostClass.counter++;
+            }
+
+            static createInstance(name: string) {
+                return new hostClass(name);
+            }
+
+            color = 'blue';
+
+            getDescription() {
+                return this.color + ' ' + this.name;
+            }
+        };
+
+        rpc1.registerHostClass('test_class', hostClass, {
+            ctor: {},
+            static: {
+                readonlyProperties: ['CONSTANT'],
+                proxiedProperties: ['counter'],
+                functions: ['createInstance']
+            },
+            instance: {
+                readonlyProperties: ['name'],
+                proxiedProperties: ['color'],
+                functions: ['getDescription']
+            }
+        });
+        rpc1.sendRemoteDescriptors();
+
+        proxyClass = rpc2.getProxyClass('test_class');
+    });
+
+    test('ctor', () => {
+        let proxyObj = new proxyClass('test');
+        expect(proxyObj).toBeDefined();
+        expect(hostClass.counter).toBe(1);
+        expect(proxyClass.counter).toBe(1);
+
+        proxyObj = new proxyClass('test_1');
+        expect(hostClass.counter).toBe(2);
+        expect(proxyClass.counter).toBe(2);
+    });
+
+    it('static readonly props', () => {
+        expect(proxyClass.CONSTANT).toEqual('foo');
+    });
+
+    test('returning an instance + readonly property', async () => {
+        const instance = await proxyClass.createInstance('test2');
+        expect(instance).toBeDefined();
+        expect(instance.name).toEqual('test2');
+        expect(hostClass.counter).toBe(1);
+    });
+
+    test('proxied property + instance method', async () => {
+        const instance = new proxyClass('test3');
+        expect(instance).toBeDefined();
+
+        expect(instance.color).toEqual('blue');
+
+        instance.color = 'green';
+
+        expect(instance.color).toEqual('green');
+        expect(await instance.getDescription()).toEqual('green test3');
     });
 });

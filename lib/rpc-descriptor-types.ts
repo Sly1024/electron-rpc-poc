@@ -12,12 +12,12 @@
  * 
  * @see [[RPCChannel]]
  */
-export type FunctionReturnType = 'sync' | 'async' | 'void';
+export type FunctionReturnBehavior = 'sync' | 'async' | 'void';
 
 /**
  * Describes a function, its arguments and its return type.
  */
-export interface FunctionDescriptor<TReturn extends FunctionReturnType = FunctionReturnType> {
+export interface FunctionDescriptor<TReturn extends FunctionReturnBehavior = FunctionReturnBehavior> {
     type?: 'function';
     name?: string;
 
@@ -49,14 +49,16 @@ export interface PropertyDescriptor {
     get?: FunctionDescriptor<'sync' | 'async'>;
 
     /**
-     * The setter of the property. Default return behavior is 'sync'.
+     * The setter of the property. 
+     * Default return behavior is 'sync'.
      */
     set?: FunctionDescriptor<'void' | 'sync'>;
 
     /**
      * If `true` then no setter will be generated for the proxy property.
+     * @default false
      */
-    readonly?: boolean;   // default is false
+    readonly?: boolean;
 }    
 
 /**
@@ -103,7 +105,9 @@ export interface ObjectDescriptorWithProps extends ObjectDescriptor {
 /**
  * Describes a class to expose. 
  */
-export interface ClassDescriptor extends ObjectDescriptor {
+export interface ClassDescriptor {
+    type?: 'class';
+
     /**
      * Ignore this. Filled in by [[registerHostClass]] function.
      */
@@ -116,20 +120,14 @@ export interface ClassDescriptor extends ObjectDescriptor {
     ctor?: FunctionDescriptor;
 
     /**
-     * Same as "functions" on an object.
-     * Default return behavior is 'async'. 
+     * Describes the "static" part of the class, treated as an object.
      */
-    staticFunctions?: (string|FunctionDescriptor)[];
+    static?: ObjectDescriptor;
 
     /**
-     * Same as "proxiedProperties" on an object.
+     * Describes instances of this class.
      */
-    staticProxiedProperties?: (string|PropertyDescriptor)[];
-
-    /**
-     * Same as "readonlyProperties" on an object.
-     */
-    staticReadonlyProperties?: string[];
+    instance?: ObjectDescriptor;
 }
 
 export type Descriptor = ObjectDescriptor | FunctionDescriptor | PropertyDescriptor;
@@ -152,4 +150,8 @@ export function getFunctionDescriptor(descriptor: ObjectDescriptor, funcName: st
 
 export function getPropertyDescriptor(descriptor?: ObjectDescriptor, propName?: string) {
     return <PropertyDescriptor>descriptor?.proxiedProperties?.find(prop => typeof prop === 'object' && prop.name === propName);
+}
+
+export function isFunctionDescriptor(descriptor?: Descriptor): descriptor is FunctionDescriptor {
+    return descriptor?.type === 'function';
 }
