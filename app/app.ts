@@ -61,7 +61,7 @@ function createWindow() {
 
     rpc.registerHostClass('Tiger', Tiger, {
         ctor: {},
-        static: { 
+        static: {
             functions: ['withName'],
             proxiedProperties: ['count'],
         },
@@ -71,7 +71,7 @@ function createWindow() {
             proxiedProperties: [{ name: 'age', get: {returns: 'async'} }]
         }
     });
-    
+
     rpc.registerHostClass('BrowserWindow', BrowserWindow, {
         ctor: { returns: 'sync' },
         static: {

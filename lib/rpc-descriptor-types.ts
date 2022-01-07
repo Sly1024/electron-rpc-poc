@@ -1,5 +1,5 @@
 /**
- * The descriptors are used to describe what properties/functions to expose on an object 
+ * The descriptors are used to describe what properties/functions to expose on an object
  * and what are the function return behaviors.
  * @module
  */
@@ -9,7 +9,7 @@
  * - sync  - the proxy function will return the result synchronously (works only if the channel supports synchronous communication)
  * - async - the proxy function will return a Promise (works only if the channel supports asynchronous communication)
  * - void  - the return value is ignored and no result message is sent
- * 
+ *
  * @see [[RPCChannel]]
  */
 export type FunctionReturnBehavior = 'sync' | 'async' | 'void';
@@ -23,7 +23,7 @@ export interface FunctionDescriptor<TReturn extends FunctionReturnBehavior = Fun
 
     /**
      * Describes the arguments of the function.
-     * 
+     *
      * Currently only functions need to be described with a [[FunctionDescriptor]], otherwise no descriptor is needed.
      */
     arguments?: ArgumentDescriptor[];
@@ -42,14 +42,14 @@ export interface PropertyDescriptor {
     name: string;
 
     /**
-     * The getter of the property. 
+     * The getter of the property.
      * If set to 'async' then it returns a Promise.
-     * Default return behavior is 'sync'. 
+     * Default return behavior is 'sync'.
      */
     get?: FunctionDescriptor<'sync' | 'async'>;
 
     /**
-     * The setter of the property. 
+     * The setter of the property.
      * Default return behavior is 'sync'.
      */
     set?: FunctionDescriptor<'void' | 'sync'>;
@@ -59,12 +59,12 @@ export interface PropertyDescriptor {
      * @default false
      */
     readonly?: boolean;
-}    
+}
 
 /**
  * Describes an argument for a function. If `idx` is not set then this
  * descriptor applies to *all* arguments.
- * 
+ *
  * Since we only care about functions as arguments, for now, it is basically a FunctionDescriptor.
  * If the argument is not a function, do not specify a descriptor for it!
  */
@@ -80,7 +80,7 @@ export interface ObjectDescriptor {
 
     /**
      * List of functions we want to expose on the proxy object.
-     * Default return behavior is 'async'. 
+     * Default return behavior is 'async'.
      */
     functions?: (string|FunctionDescriptor)[];
 
@@ -103,7 +103,7 @@ export interface ObjectDescriptorWithProps extends ObjectDescriptor {
 }
 
 /**
- * Describes a class to expose. 
+ * Describes a class to expose.
  */
 export interface ClassDescriptor {
     type?: 'class';
@@ -115,7 +115,7 @@ export interface ClassDescriptor {
 
     /**
      * Expose a constructor function that will construct an instance on the host side.
-     * Default return behavior is 'sync'. 
+     * Default return behavior is 'sync'.
      */
     ctor?: FunctionDescriptor;
 

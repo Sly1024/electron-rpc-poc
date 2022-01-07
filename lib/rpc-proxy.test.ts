@@ -51,12 +51,12 @@ beforeEach(() => {
     let channel1SyncReplyMessage: any;
     let channel2SyncReplyMessage: any;
 
-    const channel1ReplyChannel = { 
+    const channel1ReplyChannel = {
         sendSync: (msg: RPC_Message) => channel1SyncReplyMessage = msg,
         sendAsync: (message: RPC_Message) => Promise.resolve().then(() => channel1Receive(message, channel2ReplyChannel))
     };
 
-    const channel2ReplyChannel = { 
+    const channel2ReplyChannel = {
         sendSync: (msg: RPC_Message) => channel2SyncReplyMessage = msg,
         sendAsync: (message: RPC_Message) => Promise.resolve().then(() => channel2Receive(message, channel1ReplyChannel))
     };
@@ -215,7 +215,7 @@ describe('host object', () => {
         await proxyObj.fireListeners(data2);
         expect(listener.mock.calls.length).toBe(2);
         expect(listener.mock.calls[1][0]).toBe(data2);
-        
+
         await proxyObj.removeListener(listener);
         await proxyObj.fireListeners(data2);
         expect(listener.mock.calls.length).toBe(2);
@@ -235,7 +235,7 @@ describe('host function', () => {
         expect(result).toBe(14);
         expect(hostFunc.mock.calls.length).toBe(1);
     });
-    
+
     test('sync fail', () => {
         // setup
         const hostFunc = jest.fn(() => { throw new Error('error1'); });
@@ -258,7 +258,7 @@ describe('host function', () => {
         expect(result).toBe(14);
         expect(hostFunc.mock.calls.length).toBe(1);
     });
-    
+
     test('async fail', async () => {
         // setup
         const hostFunc = jest.fn(() => Promise.reject('error'));

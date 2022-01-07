@@ -10,7 +10,7 @@ const channel: RPCChannel = {
         return result;
     },
     sendAsync: (message: RPC_Message) => ipcRenderer.send('channel', message),
-    receive: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => { 
+    receive: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => {
         ipcRenderer.on('channel', (_event, message) => callback(message));
     }
 };
