@@ -89,7 +89,7 @@ describe('mock channel', () => {
         expect(reply).toBe(testReply);
     });
 
-    test('sendAsync works', (done) => {
+    test('sendAsync works', (done: () => void) => {
         const testMsg: any = {};
         const testReply: any = {};
 

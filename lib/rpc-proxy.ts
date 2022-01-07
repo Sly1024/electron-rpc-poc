@@ -508,6 +508,7 @@ export class RPCService {
     private processBeforeSerialization(obj: any, replyChannel: RPCChannel, descriptor?: Descriptor) {
         switch (typeof obj) {
             case 'object': {
+                if (!obj) break;
                 // special case for Promise
                 if (obj.constructor === Promise) {
                     if (!this.hostObjectRegistry.has((obj as any)['_rpc_objId'])) {
@@ -549,7 +550,7 @@ export class RPCService {
     }
 
     private processAfterSerialization(obj: any, replyChannel: RPCChannel, descriptor?: Descriptor) {
-        if (typeof obj !== 'object') return obj;
+        if (typeof obj !== 'object' || !obj) return obj;
 
         switch (obj._rpc_type) {
             case 'object': {

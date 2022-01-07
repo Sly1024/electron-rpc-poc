@@ -61,23 +61,30 @@ function createWindow() {
 
     rpc.registerHostClass('Tiger', Tiger, {
         ctor: {},
-        staticFunctions: ['withName'],
-        staticProxiedProperties: ['count'],
-
-        functions: [{ name: 'sprint', returns: 'void'}],
-        readonlyProperties: ['name'],
-        proxiedProperties: [{ name: 'age', get: {returns: 'async'} }]
+        static: { 
+            functions: ['withName'],
+            proxiedProperties: ['count'],
+        },
+        instance: {
+            functions: [{ name: 'sprint', returns: 'void'}],
+            readonlyProperties: ['name'],
+            proxiedProperties: [{ name: 'age', get: {returns: 'async'} }]
+        }
     });
-
+    
     rpc.registerHostClass('BrowserWindow', BrowserWindow, {
         ctor: { returns: 'sync' },
-        staticFunctions: [{ name: 'fromId', returns: 'sync' }, 'getAllWindows'],
-        readonlyProperties: ['id'],
-        functions: ['close', 'focus', 'blur', 'show', 'hide', 'setBounds', 'getBounds', 'getParentWindow', 'setParentWindow',
-            'loadURL',
-            { name: 'addListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]},
-            { name: 'removeListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]}
-        ]
+        static: {
+            functions: [{ name: 'fromId', returns: 'sync' }, 'getAllWindows'],
+        },
+        instance: {
+            readonlyProperties: ['id'],
+            functions: [
+                'close', 'focus', 'blur', 'show', 'hide', 'setBounds', 'getBounds', 'getParentWindow', 'setParentWindow', 'loadURL',
+                { name: 'addListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]},
+                { name: 'removeListener', returns: 'void', arguments: [{ idx: 1, type: 'function', returns: 'void' }]}
+            ]
+        }
     });
 
     const mainWindow = new BrowserWindow({
