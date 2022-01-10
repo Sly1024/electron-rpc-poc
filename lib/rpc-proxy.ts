@@ -516,13 +516,13 @@ export class RPCService {
     }
 
     private processBeforeSerialization(obj: any, replyChannel: RPCChannel, descriptor?: Descriptor) {
+        if (obj?._rpc_objId) {
+            return { _rpc_type: 'hostObject', objId: obj._rpc_objId };
+        }
+
         switch (typeof obj) {
             case 'object': {
                 if (!obj) break;
-
-                if (obj._rpc_objId) {
-                    return { _rpc_type: 'hostObject', objId: obj._rpc_objId };
-                }
 
                 // special case for Promise
                 if (obj.constructor === Promise) {
@@ -614,6 +614,7 @@ export class RPCService {
         if (!fn) {
             if (descriptor) descriptor.type = 'function';
             fn = this.createProxyFunction(objId, <any>descriptor, 'fn_call', 'async', replyChannel);
+            fn._rpc_objId = objId;
             this.proxyObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId, replyChannel));
         }
         return fn;

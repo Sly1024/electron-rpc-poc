@@ -560,7 +560,7 @@ describe('RPCService', () => {
 
             proxyF[rpc_disposeFunc]();
 
-            await delayPromise(0);
+            await expect(proxyF()).rejects.toThrowError();
         });
 
         test('Promise ping-pong', async () => {
@@ -572,6 +572,71 @@ describe('RPCService', () => {
 
             const result = await proxyGiveMeAPromise(async (p: Promise<string>) => ('well' + await p));
             expect(result).toEqual('welldone');
+        });
+
+        test('Promise ping-boom', async () => {
+            const giveMeAPromise = (fn: (p:Promise<string>) => Promise<void>) => fn(Promise.reject('BOOM'));
+            rpc1.registerHostFunction('fpromise2', giveMeAPromise, { });
+            rpc1.sendRemoteDescriptors();
+
+            const proxyGiveMeAPromise = rpc2.getProxyObject('fpromise2');
+            await expect(proxyGiveMeAPromise(async (p: Promise<string>) => ('well' + await p))).rejects.toMatch('BOOM');
+        });
+
+        test('sending back a proxy obj/func', async () => {
+            expect.assertions(2);
+            class A {}
+            const aInstance = new A();
+            const fInstance = jest.fn();
+
+            rpc1.registerHostClass('A', A, {});
+            rpc1.registerHostObject('objA', {
+                getA() {
+                    return aInstance;
+                },
+                getF() {
+                    return fInstance;
+                },
+                setA(a: A) {
+                    expect(a).toBe(aInstance);
+                },
+                setF(f: () => void) {
+                    expect(f).toBe(fInstance);
+                }
+            }, {
+                functions: ['getA', 'getF', 'setA', 'setF']
+            });
+            rpc1.sendRemoteDescriptors();
+
+            const proxyObj = rpc2.getProxyObject('objA');
+            const proxyA = await proxyObj.getA();
+            await proxyObj.setA(proxyA);
+
+            const proxyF = await proxyObj.getF();
+            await proxyObj.setF(proxyF);
+        });
+
+        test('proxy object in a response object', async () => {
+            expect.assertions(1);
+            class A {}
+            const aInstance = new A();
+
+            rpc1.registerHostClass('A', A, {});
+            rpc1.registerHostObject('objA', {
+                getA() {
+                    return aInstance;
+                },
+                setA(obj: { a: A }) {
+                    expect(obj.a).toBe(aInstance);
+                }
+            }, {
+                functions: ['getA', 'setA']
+            });
+            rpc1.sendRemoteDescriptors();
+
+            const proxyObj = rpc2.getProxyObject('objA');
+            const proxyA = await proxyObj.getA();
+            await proxyObj.setA({ a: proxyA });
         });
     });
 });
