@@ -17,8 +17,8 @@ type PromiseCallbacks = {
     reject: (data?: any) => void;
 };
 
-export type AnyConstructor = new (...args: any[]) => unknown;
-export type AnyFunction = ((...args: any[]) => any) | AnyConstructor;
+export type AnyConstructor = new (...args: any[]) => any;
+export type AnyFunction = ((...args: any[]) => any);
 
 type ClassRegistryEntry = {
     descriptor: ClassDescriptor;
@@ -78,7 +78,7 @@ export class RPCService {
     private callId = 0;
 
     private readonly proxyObjectRegistry = new ProxyObjectRegistry();
-    private readonly proxyClassRegistry = new Map<string, AnyFunction>();
+    private readonly proxyClassRegistry = new Map<string, AnyConstructor>();
     private readonly hostObjectRegistry = new Map<string, HostObjectRegistryEntry>();
     private readonly hostClassRegistry = new Map<string, ClassRegistryEntry>();
 
@@ -145,7 +145,7 @@ export class RPCService {
         }
 
         if (descriptor.ctor) {
-            this.registerHostFunction(classId + '.ctor', classCtor, descriptor.ctor);
+            this.registerHostFunction(classId + '.ctor', <any>classCtor, descriptor.ctor);
         }
 
         (classCtor as any)._rpc_classId = classId;
@@ -407,11 +407,15 @@ export class RPCService {
         prop: string | FunctionDescriptor,
         action: RPC_AnyCallAction,
         defaultCallType: FunctionReturnBehavior = 'async',
-        replyChannel = this.channel)
+        replyChannel = this.channel): AnyFunction | AnyConstructor
     {
         const descriptor = (typeof prop === 'object') ? prop : { name: prop };
+        let callType = descriptor?.returns || defaultCallType;
 
-        switch (descriptor?.returns || defaultCallType) {
+        if (callType === 'async' && !replyChannel.sendAsync) callType = 'sync';
+        if (callType === 'sync' && !replyChannel.sendSync) callType = 'async';
+
+        switch (callType) {
             case 'void': return this.createVoidProxyFunction(objId, descriptor, <RPC_VoidCallAction>action, replyChannel);
             case 'sync': return this.createSyncProxyFunction(objId, descriptor, <RPC_SyncCallAction>action, replyChannel);
             default: return this.createAsyncProxyFunction(objId, descriptor, <RPC_AsyncCallAction>action, replyChannel);
@@ -452,7 +456,7 @@ export class RPCService {
      * - If an instance of the registered host class is being sent from the other side,
      * an instance of this proxy class will be created and passed on this side.
      */
-    getProxyClass(classId: string) {
+    getProxyClass(classId: string): AnyConstructor {
         let clazz = this.proxyClassRegistry.get(classId);
         if (clazz) return clazz;
 
@@ -461,15 +465,15 @@ export class RPCService {
             throw new Error(`No class registered with ID '${classId}'`);
         }
 
-        clazz = descriptor.ctor ? this.createProxyFunction(classId + '.ctor', descriptor.ctor, 'ctor_call', 'sync')
-            : function () { throw new Error(`Constructor of class '${classId}' is not defined`); };
+        clazz = <AnyConstructor>(descriptor.ctor ? this.createProxyFunction(classId + '.ctor', descriptor.ctor, 'ctor_call', 'sync')
+            : function () { throw new Error(`Constructor of class '${classId}' is not defined`); });
 
         // create the proxy functions/properties on the prototype with no objId, so each function will look up "_rpc_objId" on "this"
         // so the prototype will work with multiple instances
         this.createProxyObject(null, descriptor.instance as ObjectDescriptorWithProps, clazz.prototype);
 
         // add static functions/props
-        const staticDescr = descriptor.static as ObjectDescriptorWithProps;
+        const staticDescr = descriptor.static as ObjectDescriptorWithProps ?? {};
         const objDescr = this.remoteObjectDescriptors?.[classId];
         if (!isFunctionDescriptor(objDescr)) {
             staticDescr.props = objDescr?.props;
@@ -481,18 +485,20 @@ export class RPCService {
         return clazz;
     }
 
-    private createProxyObject(objId: string|null, descriptor: ObjectDescriptorWithProps, obj: any = {}) {
-        if (descriptor.props) Object.assign(obj, descriptor.props);
+    private createProxyObject(objId: string|null, descriptor?: ObjectDescriptorWithProps, obj: any = {}) {
+        Object.assign(obj, descriptor?.props);
 
-        for (const prop of descriptor.functions ?? []) {
+        for (const prop of descriptor?.functions ?? []) {
             obj[getPropName(prop)] = this.createProxyFunction(objId, prop, 'method_call');
         }
 
-        for (const prop of descriptor.proxiedProperties ?? []) {
+        const setterCallType = this.channel.sendSync ? 'sync' : 'void';
+
+        for (const prop of descriptor?.proxiedProperties ?? []) {
             const descr = typeof prop === 'string' ? { name: prop } : prop;
             Object.defineProperty(obj, descr.name, {
-                get: this.createProxyFunction(objId, { ...descr.get, name: descr.name }, 'prop_get', 'sync'),
-                set: descr.readonly ? undefined : this.createProxyFunction(objId, { ...descr.set, name: descr.name }, 'prop_set', 'sync')
+                get: <AnyFunction>this.createProxyFunction(objId, { ...descr.get, name: descr.name }, 'prop_get', 'sync'),
+                set: descr.readonly ? undefined : <AnyFunction>this.createProxyFunction(objId, { ...descr.set, name: descr.name }, 'prop_set', setterCallType)
             });
         }
 
