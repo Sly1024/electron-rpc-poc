@@ -1,6 +1,3 @@
-export const rpc_disposed = Symbol('rpc_disposed');
-export const rpc_disposeFunc = Symbol('rpc_dispose');
-
 /**
  * Stores proxy objects/functions that represent remote objects - **used internally**.
  *
@@ -14,6 +11,10 @@ export const rpc_disposeFunc = Symbol('rpc_dispose');
  * @module
  * @internal
  */
+
+export const rpc_disposed = Symbol('rpc_disposed');
+export const rpc_disposeFunc = Symbol('rpc_dispose');
+
 export class ProxyObjectRegistry {
     private readonly registry = new Map<string, WeakRef<any>>();
     private readonly objectFinalized = new FinalizationRegistry((rpc_dispose: () => void) => rpc_dispose());

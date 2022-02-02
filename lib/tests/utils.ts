@@ -1,5 +1,10 @@
 /* istanbul ignore file */
 
+/**
+ * @module
+ * @internal
+ */
+
 // Going to use jest.useFakeTimers, so store the real setTimeout here
 const realTimeout = setTimeout;
 

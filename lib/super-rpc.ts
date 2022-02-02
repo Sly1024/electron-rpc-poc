@@ -30,6 +30,11 @@ type HostObjectRegistryEntry = {
     descriptor: FunctionDescriptor | ObjectDescriptor;
 };
 
+
+const hostObjectId = Symbol('hostObjectId');
+const proxyObjectId = Symbol('proxyObjectId');
+const classIdSym = Symbol('classId');
+
 /**
  * The channel used for the communication.
  * Can support synchronous and/or asynchronous messages.
@@ -50,11 +55,11 @@ export interface RPCChannel {
     /**
      * Register a callback for when an async message arrives.
      */
-    receive?: (callback: (message: RPC_Message, replyChannel?: RPCChannel) => void) => void;
+    receive?: (callback: (message: RPC_Message, replyChannel?: RPCChannel, context?: any) => void) => void;
 }
 
 /**
- * The RPCService is the central piece. An instance must be created on both sides.
+ * The SuperRPC is the central piece. An instance must be created on both sides.
  *
  * Objects, functions or classes can be registered on the "host" side
  * (see [[registerHostObject]], [[registerHostClass]]) and then functions/properties can be
@@ -67,7 +72,7 @@ export interface RPCChannel {
  * In order to have no dependencies this needs to be passed in.
  * For convenience the examples use [nanoid](https://www.npmjs.com/package/nanoid).
  */
-export class RPCService {
+export class SuperRPC {
     private channel!: RPCChannel;
 
     private remoteObjectDescriptors?: ObjectDescriptors;
@@ -108,6 +113,7 @@ export class RPCService {
      */
     registerHostObject(objId: string, target: object, descriptor: ObjectDescriptor) {
         descriptor.type = 'object';
+        (target as any)[hostObjectId] = objId;
         this.hostObjectRegistry.set(objId, { target, descriptor });
     }
 
@@ -119,6 +125,7 @@ export class RPCService {
      */
     registerHostFunction(objId: string, target: AnyFunction, descriptor: FunctionDescriptor) {
         descriptor.type = 'function';
+        (target as any)[hostObjectId] = objId;
         this.hostObjectRegistry.set(objId, { target, descriptor });
     }
 
@@ -148,7 +155,7 @@ export class RPCService {
             this.registerHostFunction(classId + '.ctor', <any>classCtor, descriptor.ctor);
         }
 
-        (classCtor as any)._rpc_classId = classId;
+        (classCtor as any)[classIdSym] = classId;
         this.hostClassRegistry.set(classId, { classCtor, descriptor });
     }
 
@@ -200,6 +207,8 @@ export class RPCService {
             // therefore it is safe to cast it to the entry types
             const entry = <ClassRegistryEntry|HostObjectRegistryEntry>registry.get(key);
 
+            if (!entry.descriptor) continue;
+
             const descr = descriptors[key] = { ...entry.descriptor };
 
             if (entry.descriptor.type === 'object' && entry.descriptor.readonlyProperties) {
@@ -239,7 +248,7 @@ export class RPCService {
         return typeof message === 'object' && message.rpc_marker === 'srpc';
     }
 
-    private callTargetFunction(msg: RPC_AnyCallMessage, replyChannel = this.channel) {
+    private callTargetFunction(msg: RPC_AnyCallMessage, replyChannel = this.channel, context?: any) {
         const entry = this.hostObjectRegistry.get(msg.objId);
         let result: any;
         let success = true;
@@ -267,7 +276,7 @@ export class RPCService {
                 }
                 // eslint-disable-next-line no-fallthrough
                 case 'fn_call': {
-                    result = target.apply(scope, this.deserializeFunctionArgs(descriptor as FunctionDescriptor, msg.args, replyChannel));
+                    result = target.apply(scope, this.deserializeFunctionArgs(descriptor as FunctionDescriptor, msg.args, replyChannel).concat(context));
                     break;
                 }
                 case 'ctor_call': {
@@ -294,7 +303,7 @@ export class RPCService {
         }
     }
 
-    private messageReceived(message: RPC_Message, replyChannel = this.channel) {
+    private messageReceived(message: RPC_Message, replyChannel = this.channel, context?: any) {
         if (this.checkMarker(message)) {
             switch (message.action) {
                 case 'get_descriptors': {
@@ -312,7 +321,7 @@ export class RPCService {
                 case 'ctor_call':
                 case 'fn_call':
                 case 'method_call': {
-                    this.callTargetFunction(message, replyChannel);
+                    this.callTargetFunction(message, replyChannel, context);
                     break;
                 }
                 case 'obj_died': {
@@ -349,7 +358,7 @@ export class RPCService {
             _this.sendAsyncIfPossible({
                 action,
                 callType: 'void',
-                objId: objId ?? this._rpc_objId,
+                objId: objId ?? this[proxyObjectId],
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 prop: func.name!,
                 args: _this.serializeFunctionArgs(func, args, replyChannel)
@@ -366,7 +375,7 @@ export class RPCService {
             const response = _this.sendSync({
                 action,
                 callType: 'sync',
-                objId: objId ?? this._rpc_objId,
+                objId: objId ?? this[proxyObjectId],
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 prop: func.name!,
                 args: _this.serializeFunctionArgs(func, args, replyChannel)
@@ -390,7 +399,7 @@ export class RPCService {
                 _this.callId++;
                 _this.sendAsync({
                     action, callType: 'async',
-                    objId: objId ?? this._rpc_objId,
+                    objId: objId ?? this[proxyObjectId],
                     callId: _this.callId,
                     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                     prop: func.name!,
@@ -468,7 +477,7 @@ export class RPCService {
         clazz = <AnyConstructor>(descriptor.ctor ? this.createProxyFunction(classId + '.ctor', descriptor.ctor, 'ctor_call', 'sync')
             : function () { throw new Error(`Constructor of class '${classId}' is not defined`); });
 
-        // create the proxy functions/properties on the prototype with no objId, so each function will look up "_rpc_objId" on "this"
+        // create the proxy functions/properties on the prototype with no objId, so each function will look up "proxyObjectId" on "this"
         // so the prototype will work with multiple instances
         this.createProxyObject(null, descriptor.instance as ObjectDescriptorWithProps, clazz.prototype);
 
@@ -502,22 +511,24 @@ export class RPCService {
             });
         }
 
+        obj[proxyObjectId] = objId;
+
         return obj;
     }
 
     private registerLocalObj(obj: any, descriptor: FunctionDescriptor | ObjectDescriptor) {
-        let objId = obj._rpc_objId;
+        let objId = obj[hostObjectId];
         if (!this.hostObjectRegistry.has(objId)) {
             objId = this.objectIdGenerator();
             this.hostObjectRegistry.set(objId, { target: obj, descriptor });
-            obj._rpc_objId = objId;
+            obj[hostObjectId] = objId;
         }
         return objId;
     }
 
     private processBeforeSerialization(obj: any, replyChannel: RPCChannel, descriptor?: Descriptor) {
-        if (obj?._rpc_objId) {
-            return { _rpc_type: 'hostObject', objId: obj._rpc_objId };
+        if (obj?.[proxyObjectId]) {
+            return { _rpc_type: 'hostObject', objId: obj[proxyObjectId] };
         }
 
         switch (typeof obj) {
@@ -526,7 +537,7 @@ export class RPCService {
 
                 // special case for Promise
                 if (obj.constructor === Promise) {
-                    if (!this.hostObjectRegistry.has((obj as any)._rpc_objId)) {
+                    if (!this.hostObjectRegistry.has((obj as any)[hostObjectId])) {
                         let result: unknown;
                         let success: boolean;
                         obj.then(
@@ -538,7 +549,7 @@ export class RPCService {
                     return { _rpc_type: 'object', objId, classId: 'Promise' };
                 }
 
-                const entry = this.hostClassRegistry.get(obj.constructor._rpc_classId);
+                const entry = this.hostClassRegistry.get(obj.constructor?.[classIdSym]);
                 if (entry) {
                     const objId = this.registerLocalObj(obj, entry.descriptor.instance ?? {});
                     const props: any = {};
@@ -600,7 +611,7 @@ export class RPCService {
         if (classId === 'Promise') {
             obj = new Promise((resolve, reject) => this.asyncCallbacks.set(objId, { resolve, reject }));
         } else {
-            obj._rpc_objId = objId;
+            obj[proxyObjectId] = objId;
             const clazz = this.getProxyClass(classId);
             Object.setPrototypeOf(obj, clazz.prototype);
         }
@@ -611,12 +622,13 @@ export class RPCService {
 
     private getOrCreateProxyFunction(objId: string, replyChannel: RPCChannel, descriptor?: FunctionDescriptor) {
         let fn = this.proxyObjectRegistry.get(objId);
-        if (!fn) {
-            if (descriptor) descriptor.type = 'function';
-            fn = this.createProxyFunction(objId, <any>descriptor, 'fn_call', 'async', replyChannel);
-            fn._rpc_objId = objId;
-            this.proxyObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId, replyChannel));
-        }
+        if (fn) return fn;
+
+        if (descriptor) descriptor.type = 'function';
+        fn = this.createProxyFunction(objId, <any>descriptor, 'fn_call', 'async', replyChannel);
+        fn[proxyObjectId] = objId;
+        this.proxyObjectRegistry.register(objId, fn, () => this.sendObjectDied(objId, replyChannel));
+
         return fn;
     }
 

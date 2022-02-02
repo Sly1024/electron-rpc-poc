@@ -1,16 +1,16 @@
-import { AnyConstructor, RPCChannel, RPCService } from '../rpc-proxy';
+import { AnyConstructor, RPCChannel, SuperRPC } from '../super-rpc';
 import { RPC_Message } from '../rpc-message-types';
 import { nanoid } from 'nanoid/non-secure';
-import { waitForAllTimers, delayPromise } from './utils';
+import { waitForAllTimers } from './utils';
 import { rpc_disposeFunc } from '../proxy-object-registry';
 
-describe('RPCService', () => {
+describe('SuperRPC', () => {
     let channel1: RPCChannel;
     let channel2: RPCChannel;
     let channel1ReplyChannel: RPCChannel;
     let channel2ReplyChannel: RPCChannel;
-    let rpc1: RPCService;
-    let rpc2: RPCService;
+    let rpc1: SuperRPC;
+    let rpc2: SuperRPC;
 
     beforeEach(() => {
         // set up the two endpoints of the channel
@@ -43,8 +43,8 @@ describe('RPCService', () => {
         channel2.sendAsync = channel1ReplyChannel.sendAsync;
 
         // create the two service instances
-        rpc1 = new RPCService(nanoid);
-        rpc2 = new RPCService(nanoid);
+        rpc1 = new SuperRPC(nanoid);
+        rpc2 = new SuperRPC(nanoid);
 
         rpc1.connect(channel1);
         rpc2.connect(channel2);

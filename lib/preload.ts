@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { RPCChannel } from './rpc-proxy';
+import type { RPCChannel } from './super-rpc';
 import { RPC_Message } from './rpc-message-types';
 
 // a communication channel

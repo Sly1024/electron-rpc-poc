@@ -5,7 +5,7 @@
 
     "scripts": {
       "watch": "tsc -p ./tsconfig.json -w",
-      "doc": "typedoc --excludeInternal --entryPointStrategy expand .",
+      "doc": "typedoc --excludeInternal --readme README.md --entryPointStrategy expand .",
       "test": "jest --preset ts-jest --coverage"
     },
     "author": "szilveszter.safar@gmail.com",
